@@ -2,8 +2,9 @@ package com.bwsw.t_sreams.hello
 
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
-import com.bwsw.tstreams.agents.consumer.Offsets.{Newest, Oldest}
-import com.bwsw.tstreams.agents.consumer.subscriber.{SubscribingConsumer, Callback}
+import com.bwsw.tstreams.agents.consumer.Offset.Newest
+import com.bwsw.tstreams.agents.consumer.TransactionOperator
+import com.bwsw.tstreams.agents.consumer.subscriber.{Callback}
 import com.bwsw.tstreams.agents.producer.NewTransactionProducerPolicy
 import com.bwsw.tstreams.env.{TStreamsFactory, TSF_Dictionary}
 import com.bwsw.tstreams.generator.LocalTimeUUIDGenerator
@@ -69,7 +70,8 @@ object HelloSubscriber {
       setProperty(TSF_Dictionary.Producer.BIND_PORT, 18001).                          // producer will listen localhost:18001
       setProperty(TSF_Dictionary.Consumer.Subscriber.BIND_PORT, 18002).               // subscriber will listen localhost:18002
       setProperty(TSF_Dictionary.Consumer.Subscriber.PERSISTENT_QUEUE_PATH, "/tmp").  // subscriber will store data bursts in /tmp
-      setProperty(TSF_Dictionary.Stream.NAME, "test-stream")                          // producer and consumer will operate on "test-stream" t-stream
+      setProperty(TSF_Dictionary.Stream.NAME, "test-stream").                          // producer and consumer will operate on "test-stream" t-stream
+      setProperty(TSF_Dictionary.Consumer.Subscriber.POLLING_FREQUENCY_DELAY, 1000)
 
     val l = new CountDownLatch(1)
     var cntr = 0
@@ -79,12 +81,12 @@ object HelloSubscriber {
       name          = "test_subscriber",              // name of the subscribing consumer
       txnGenerator  = new LocalTimeUUIDGenerator,     // where it can get transaction uuids
       converter     = new ArrayByteToStringConverter, // vice versa converter to string
-      partitions    = List(0),                        // active partitions
+      partitions    = Set(0),                        // active partitions
       offset        = Newest,                         // it will start from newest available partitions
       isUseLastOffset = false,                        // will ignore history
       callback = new Callback[String] {
-        override def onEvent(subscriber: SubscribingConsumer[String], partition: Int, transactionUuid: UUID): Unit = {
-          val txn = subscriber.getTransactionById(partition, transactionUuid) // get transaction
+        override def onEvent(op: TransactionOperator[String], partition: Int, transactionUuid: UUID, count: Int): Unit = {
+          val txn = op.getTransactionById(partition, transactionUuid) // get transaction
           txn.get.getAll().foreach(i => i)                           // get all information from transaction
           cntr += 1
           if (cntr % 100 == 0)
