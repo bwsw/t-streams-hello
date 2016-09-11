@@ -5,7 +5,7 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 
 import com.bwsw.tstreams.agents.consumer.Offset.Newest
-import com.bwsw.tstreams.agents.consumer.TransactionOperator
+import com.bwsw.tstreams.agents.consumer.{Transaction, TransactionOperator}
 import com.bwsw.tstreams.agents.consumer.subscriber.Callback
 import com.bwsw.tstreams.agents.producer.NewTransactionProducerPolicy
 import com.bwsw.tstreams.common.{CassandraConnectorConf, CassandraHelper, MetadataConnectionPool}
@@ -16,22 +16,22 @@ import com.bwsw.tstreams.converter.{ArrayByteToStringConverter, StringToArrayByt
 import scala.util.Random
 
 object Setup {
-  val TOTAL_TXNS = 10000
+  val TOTAL_TXNS = 100000
   val TOTAL_ITMS = 1
   val KS = "tk_1"
-  val TOTAL_PARTS = 1
+  val TOTAL_PARTS = 100
   val PARTS = (0 until TOTAL_PARTS).toSet
 
   // create factory
   val factory = new TStreamsFactory()
   factory.setProperty(TSF_Dictionary.Metadata.Cluster.NAMESPACE, Setup.KS).                 // keyspace must exist in C*
     setProperty(TSF_Dictionary.Data.Cluster.NAMESPACE, "test").                     // exists by default in Aerospike
-    setProperty(TSF_Dictionary.Producer.BIND_PORT, 18001).                          // producer will listen localhost:18001
-    setProperty(TSF_Dictionary.Consumer.Subscriber.BIND_PORT, 18002).               // subscriber will listen localhost:18002
     setProperty(TSF_Dictionary.Consumer.Subscriber.PERSISTENT_QUEUE_PATH, null).  // subscriber will store data bursts in /tmp
     setProperty(TSF_Dictionary.Stream.NAME, "test-stream").                          // producer and consumer will operate on "test-stream" t-stream
-    setProperty(TSF_Dictionary.Consumer.Subscriber.POLLING_FREQUENCY_DELAY, 10000).
+    setProperty(TSF_Dictionary.Consumer.Subscriber.POLLING_FREQUENCY_DELAY, 1000).
     setProperty(TSF_Dictionary.Stream.PARTITIONS, TOTAL_PARTS)
+    .setProperty(TSF_Dictionary.Consumer.Subscriber.TRANSACTION_BUFFER_THREAD_POOL, 10)
+    .setProperty(TSF_Dictionary.Consumer.Subscriber.PROCESSING_ENGINES_THREAD_POOL, 10)
 
   def main(args: Array[String]): Unit = {
     val cluster = MetadataConnectionPool.getCluster(CassandraConnectorConf(Set(new InetSocketAddress("localhost", 9042))))
@@ -104,9 +104,8 @@ object HelloSubscriber {
       offset        = Newest,                         // it will start from newest available partitions
       isUseLastOffset = false,                        // will ignore history
       callback = new Callback[String] {
-        override def onEvent(op: TransactionOperator[String], partition: Int, transactionUuid: UUID, count: Int): Unit = {
-          val txn = op.getTransactionById(partition, transactionUuid) // get transaction
-          txn.get.getAll().foreach(i => sum += Integer.parseInt(i))                           // get all information from transaction
+        override def onEvent(op: TransactionOperator[String], txn: Transaction[String]): Unit = this.synchronized {
+          txn.getAll().foreach(i => sum += Integer.parseInt(i))                           // get all information from transaction
           cntr += 1
           if (cntr % 100 == 0) {
             println(cntr)
