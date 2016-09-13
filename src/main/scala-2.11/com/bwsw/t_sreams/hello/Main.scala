@@ -24,14 +24,19 @@ object Setup {
 
   // create factory
   val factory = new TStreamsFactory()
-  factory.setProperty(TSF_Dictionary.Metadata.Cluster.NAMESPACE, Setup.KS).                 // keyspace must exist in C*
-    setProperty(TSF_Dictionary.Data.Cluster.NAMESPACE, "test").                     // exists by default in Aerospike
-    setProperty(TSF_Dictionary.Consumer.Subscriber.PERSISTENT_QUEUE_PATH, null).  // subscriber will store data bursts in /tmp
-    setProperty(TSF_Dictionary.Stream.NAME, "test-stream").                          // producer and consumer will operate on "test-stream" t-stream
-    setProperty(TSF_Dictionary.Consumer.Subscriber.POLLING_FREQUENCY_DELAY, 1000).
-    setProperty(TSF_Dictionary.Stream.PARTITIONS, TOTAL_PARTS)
+
+  factory
+    .setProperty(TSF_Dictionary.Metadata.Cluster.NAMESPACE, Setup.KS)
+    .setProperty(TSF_Dictionary.Data.Cluster.NAMESPACE, "test")
+    .setProperty(TSF_Dictionary.Consumer.Subscriber.PERSISTENT_QUEUE_PATH, null)
+    .setProperty(TSF_Dictionary.Stream.NAME, "test-stream")
+    .setProperty(TSF_Dictionary.Consumer.Subscriber.POLLING_FREQUENCY_DELAY, 1000)
+    .setProperty(TSF_Dictionary.Stream.PARTITIONS, TOTAL_PARTS)
     .setProperty(TSF_Dictionary.Consumer.Subscriber.TRANSACTION_BUFFER_THREAD_POOL, 10)
     .setProperty(TSF_Dictionary.Consumer.Subscriber.PROCESSING_ENGINES_THREAD_POOL, 10)
+    .setProperty(TSF_Dictionary.Coordination.ENDPOINTS, "localhost:2181")
+    .setProperty(TSF_Dictionary.Metadata.Cluster.ENDPOINTS, "localhost:9042")
+    .setProperty(TSF_Dictionary.Data.Cluster.ENDPOINTS, "localhost:3000")
 
   def main(args: Array[String]): Unit = {
     val cluster = MetadataConnectionPool.getCluster(CassandraConnectorConf(Set(new InetSocketAddress("localhost", 9042))))
