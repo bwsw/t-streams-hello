@@ -5,12 +5,12 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 
 import com.bwsw.tstreams.agents.consumer.Offset.Newest
-import com.bwsw.tstreams.agents.consumer.{Transaction, TransactionOperator}
+import com.bwsw.tstreams.agents.consumer.{ConsumerTransaction, TransactionOperator}
 import com.bwsw.tstreams.agents.consumer.subscriber.Callback
 import com.bwsw.tstreams.agents.producer.NewTransactionProducerPolicy
 import com.bwsw.tstreams.common.{CassandraConnectorConf, CassandraHelper, MetadataConnectionPool}
 import com.bwsw.tstreams.env.{TSF_Dictionary, TStreamsFactory}
-import com.bwsw.tstreams.generator.LocalTimeUUIDGenerator
+import com.bwsw.tstreams.generator.LocalTransactionGenerator
 import com.bwsw.tstreams.converter.{ArrayByteToStringConverter, StringToArrayByteConverter}
 
 import scala.util.Random
@@ -18,7 +18,7 @@ import scala.util.Random
 object Setup {
   val TOTAL_TXNS = 100000
   val TOTAL_ITMS = 1
-  val KS = "tk_1"
+  val KS = "tk_hello"
   val TOTAL_PARTS = 100
   val PARTS = (0 until TOTAL_PARTS).toSet
 
@@ -63,7 +63,7 @@ object HelloProducer {
     // create producer
     val producer = Setup.factory.getProducer[String](
                 name = "test_producer",                     // name of the producer
-                txnGenerator = new LocalTimeUUIDGenerator,  // where it will get new transactions
+                transactionGenerator = new LocalTransactionGenerator(),  // where it will get new transactions
                 converter = new StringToArrayByteConverter, // converter from String to internal data presentation
                 partitions = Setup.PARTS,                       // active partitions
                 isLowPriority = false)                      // agent can be a master
@@ -103,13 +103,13 @@ object HelloSubscriber {
 
     val subscriber = Setup.factory.getSubscriber[String](
       name          = "test_subscriber",              // name of the subscribing consumer
-      txnGenerator  = new LocalTimeUUIDGenerator,     // where it can get transaction uuids
+      transactionGenerator  = new LocalTransactionGenerator(),     // where it can get transaction uuids
       converter     = new ArrayByteToStringConverter, // vice versa converter to string
-      partitions    = Setup.PARTS.toSet,                        // active partitions
+      partitions    = Setup.PARTS,                        // active partitions
       offset        = Newest,                         // it will start from newest available partitions
       isUseLastOffset = false,                        // will ignore history
       callback = new Callback[String] {
-        override def onEvent(op: TransactionOperator[String], txn: Transaction[String]): Unit = this.synchronized {
+        override def onTransaction(op: TransactionOperator[String], txn: ConsumerTransaction[String]): Unit = this.synchronized {
           txn.getAll().foreach(i => sum += Integer.parseInt(i))                           // get all information from transaction
           cntr += 1
           if (cntr % 100 == 0) {
