@@ -19,7 +19,7 @@ object Setup {
   val TOTAL_TXNS = 100000
   val TOTAL_ITMS = 1
   val KS = "tk_hello"
-  val TOTAL_PARTS = 100
+  val TOTAL_PARTS = 10
   val PARTS = (0 until TOTAL_PARTS).toSet
 
   // create factory
@@ -32,8 +32,8 @@ object Setup {
     .setProperty(TSF_Dictionary.Stream.NAME, "test-stream")
     .setProperty(TSF_Dictionary.Consumer.Subscriber.POLLING_FREQUENCY_DELAY, 1000)
     .setProperty(TSF_Dictionary.Stream.PARTITIONS, TOTAL_PARTS)
-    .setProperty(TSF_Dictionary.Consumer.Subscriber.TRANSACTION_BUFFER_THREAD_POOL, 10)
-    .setProperty(TSF_Dictionary.Consumer.Subscriber.PROCESSING_ENGINES_THREAD_POOL, 10)
+    .setProperty(TSF_Dictionary.Consumer.Subscriber.TRANSACTION_BUFFER_THREAD_POOL, 5)
+    .setProperty(TSF_Dictionary.Consumer.Subscriber.PROCESSING_ENGINES_THREAD_POOL, 5)
     .setProperty(TSF_Dictionary.Coordination.ENDPOINTS, "localhost:2181")
     .setProperty(TSF_Dictionary.Metadata.Cluster.ENDPOINTS, "localhost:9042")
     .setProperty(TSF_Dictionary.Data.Cluster.ENDPOINTS, "localhost:3000")
