@@ -4,7 +4,7 @@ import java.net.InetSocketAddress
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 
-import com.bwsw.tstreams.agents.consumer.Offset.Newest
+import com.bwsw.tstreams.agents.consumer.Offset.{Oldest, Newest}
 import com.bwsw.tstreams.agents.consumer.{ConsumerTransaction, TransactionOperator}
 import com.bwsw.tstreams.agents.consumer.subscriber.Callback
 import com.bwsw.tstreams.agents.producer.NewTransactionProducerPolicy
@@ -29,7 +29,7 @@ object Setup {
     .setProperty(TSF_Dictionary.Metadata.Cluster.NAMESPACE, Setup.KS)
     .setProperty(TSF_Dictionary.Data.Cluster.NAMESPACE, "test")
     .setProperty(TSF_Dictionary.Consumer.Subscriber.PERSISTENT_QUEUE_PATH, null)
-    .setProperty(TSF_Dictionary.Stream.NAME, "test-stream")
+    .setProperty(TSF_Dictionary.Stream.NAME, "test-stream-1")
     .setProperty(TSF_Dictionary.Consumer.Subscriber.POLLING_FREQUENCY_DELAY, 1000)
     .setProperty(TSF_Dictionary.Stream.PARTITIONS, TOTAL_PARTS)
     .setProperty(TSF_Dictionary.Consumer.Subscriber.TRANSACTION_BUFFER_THREAD_POOL, 5)
@@ -65,8 +65,7 @@ object HelloProducer {
                 name = "test_producer",                     // name of the producer
                 transactionGenerator = new LocalTransactionGenerator(),  // where it will get new transactions
                 converter = new StringToArrayByteConverter, // converter from String to internal data presentation
-                partitions = Setup.PARTS,                       // active partitions
-                isLowPriority = false)                      // agent can be a master
+                partitions = Setup.PARTS)                      // agent can be a master
 
     val startTime = System.currentTimeMillis()
     var sum = 0L
@@ -81,7 +80,7 @@ object HelloProducer {
         })
         if (i % 100 == 0)
           println(i)
-        t.checkpoint(false)  // checkpoint the transaction
+        t.checkpoint(true)  // checkpoint the transaction
       })
 
     val stopTime = System.currentTimeMillis()
@@ -106,8 +105,8 @@ object HelloSubscriber {
       transactionGenerator  = new LocalTransactionGenerator(),     // where it can get transaction uuids
       converter     = new ArrayByteToStringConverter, // vice versa converter to string
       partitions    = Setup.PARTS,                        // active partitions
-      offset        = Newest,                         // it will start from newest available partitions
-      isUseLastOffset = false,                        // will ignore history
+      offset        = Oldest,                         // it will start from newest available partitions
+      isUseLastOffset = true,                        // will ignore history
       callback = new Callback[String] {
         override def onTransaction(op: TransactionOperator[String], txn: ConsumerTransaction[String]): Unit = this.synchronized {
           txn.getAll().foreach(i => sum += Integer.parseInt(i))                           // get all information from transaction

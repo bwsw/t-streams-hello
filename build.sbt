@@ -1,10 +1,10 @@
-val prodVersion = "1.0"
+val prodVersion = "1.1"
 name 		:= "t-streams-hello"
 version 	:= prodVersion
 scalaVersion 	:= "2.11.8"
 
-resolvers += "twitter resolver" at "http://maven.twttr.com"
-resolvers += Resolver.sonatypeRepo("releases")
+resolvers += Resolver.sonatypeRepo("snapshots")
 
-libraryDependencies ++= Seq("com.bwsw" % "t-streams_2.11" % "1.0.3.1")
+
+libraryDependencies ++= Seq("com.bwsw" % "t-streams_2.11" % "1.1.0-SNAPSHOT")
 assemblyJarName in assembly := "ts-hello" + prodVersion + ".jar"
