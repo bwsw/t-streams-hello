@@ -3,15 +3,13 @@ package com.bwsw.t_sreams.hello
 
 import java.util.concurrent.CountDownLatch
 
-import com.bwsw.tstreams.agents.consumer.Offset.{Oldest, Newest}
+import com.bwsw.tstreams.agents.consumer.Offset.Newest
 import com.bwsw.tstreams.agents.consumer.{ConsumerTransaction, TransactionOperator}
-import com.bwsw.tstreams.agents.producer.NewTransactionProducerPolicy
 import com.bwsw.tstreams.env.{ConfigurationOptions, TStreamsFactory}
 import com.bwsw.tstreamstransactionserver.options.CommonOptions.ZookeeperOptions
 import com.bwsw.tstreamstransactionserver.options.ServerBuilder
 import com.bwsw.tstreamstransactionserver.options.ServerOptions.{CommitLogOptions, StorageOptions}
 
-import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
 object Setup {
@@ -23,25 +21,10 @@ object Setup {
 
   // create factory
   val factory = new TStreamsFactory()
-
-  factory.setProperty(ConfigurationOptions.Stream.ttlSec, 60 * 10).
-    setProperty(ConfigurationOptions.Coordination.connectionTimeoutMs, 7000).
-    setProperty(ConfigurationOptions.Coordination.sessionTimeoutMs, 7000).
-    setProperty(ConfigurationOptions.Producer.transportTimeoutMs, 5000).
-    setProperty(ConfigurationOptions.Producer.Transaction.ttlMs, 6000).
-    setProperty(ConfigurationOptions.Producer.Transaction.keepAliveMs, 2000).
-    setProperty(ConfigurationOptions.Producer.Transaction.batchSize, 100).
-    setProperty(ConfigurationOptions.Consumer.transactionPreload, 500).
-    setProperty(ConfigurationOptions.Consumer.dataPreload, 10).
-    setProperty(ConfigurationOptions.Stream.name, "test_stream").
-    setProperty(ConfigurationOptions.Consumer.Subscriber.pollingFrequencyDelayMs, 1000).
-    setProperty(ConfigurationOptions.Consumer.Subscriber.processingEnginesThreadPoolSize, 5).
-    setProperty(ConfigurationOptions.Consumer.Subscriber.transactionBufferThreadPoolSize, 5).
-    setProperty(ConfigurationOptions.Stream.partitionsCount, TOTAL_PARTS)
+  factory.setProperty(ConfigurationOptions.Stream.name, "test_stream")
 
   def main(args: Array[String]): Unit = {
     val storageClient = factory.getStorageClient()
-    //storageClient.deleteStream("test_stream")
     storageClient.createStream("test_stream", TOTAL_PARTS, 24 * 3600, "")
     storageClient.shutdown()
   }
@@ -52,20 +35,18 @@ object Setup {
   */
 object HelloProducer {
   def main(args: Array[String]): Unit = {
-    val l = new CountDownLatch(1)
-    var cntr = 0
 
     // create producer
     val producer = Setup.factory.getProducer(
-                name = "test_producer",                     // name of the producer
-                partitions = Setup.PARTS)                      // agent can be a master
+                name = "test_producer",
+                partitions = Setup.PARTS)
 
     val startTime = System.currentTimeMillis()
     var sum = 0L
 
     (0 until Setup.TOTAL_TXNS).foreach(
       i => {
-        val t = producer.newTransaction(policy = NewTransactionProducerPolicy.CheckpointIfOpened) // create new transaction
+        val t = producer.newTransaction()
         (0 until Setup.TOTAL_ITMS).foreach(j => {
           val v = Random.nextInt()
           t.send(s"${v}".getBytes())
@@ -74,7 +55,7 @@ object HelloProducer {
         if (i % 100 == 0)
           println(i)
 
-        t.checkpoint(true)  // checkpoint the transaction
+        t.checkpoint()  // checkpoint the transaction
       })
 
     val stopTime = System.currentTimeMillis()
@@ -91,7 +72,7 @@ object HelloSubscriber {
   def main(args: Array[String]): Unit = {
 
     val l = new CountDownLatch(1)
-    var cntr = 0
+    var transactionCounter = 0
     var sum = 0L
 
     val subscriber = Setup.factory.getSubscriber(
@@ -101,13 +82,13 @@ object HelloSubscriber {
       useLastOffset = false,                        // will ignore history
       checkpointAtStart = true,
       callback = (op: TransactionOperator, txn: ConsumerTransaction) => this.synchronized {
-        txn.getAll().foreach(i => sum += Integer.parseInt(new String(i))) // get all information from transaction
-        cntr += 1
-        if (cntr % 100 == 0) {
-          println(cntr)
+        txn.getAll.foreach(i => sum += Integer.parseInt(new String(i))) // get all information from transaction
+        transactionCounter += 1
+        if (transactionCounter % 100 == 0) {
+          println(transactionCounter)
           op.checkpoint()
         }
-        if (cntr == Setup.TOTAL_TXNS) // if the producer sent all information, then end
+        if (transactionCounter == Setup.TOTAL_TXNS) // if the producer sent all information, then end
           l.countDown()
       })
 
@@ -139,78 +120,3 @@ object Server {
 }
 
 
-/**
-  * Created by Ivan Kudryavtsev on 05.08.16.
-  */
-object ProducerTimes {
-  def main(args: Array[String]): Unit = {
-
-    Setup.factory.setProperty(ConfigurationOptions.Producer.Transaction.batchSize, 1)
-
-    // create producer
-    val producer = Setup.factory.getProducer(
-      name = "test_producer",                     // name of the producer
-      partitions = Setup.PARTS)                      // agent can be a master
-
-    val N = 10000
-
-    val avgNewTransaction = new Counters("New Transaction", N)
-    var avgSendData = new Counters("Send Data", N)
-    var avgCheckpoint = new Counters("Checkpoint", N)
-
-    (0 until N).foreach(counter => {
-
-      val t1 = System.currentTimeMillis()
-
-      val t = producer.newTransaction(policy = NewTransactionProducerPolicy.CheckpointIfOpened) // create new transaction
-      val t2 = System.currentTimeMillis()
-
-      t.send(new Array[Byte](100))
-      val t3 = System.currentTimeMillis()
-
-      t.checkpoint(true)
-      val t4 = System.currentTimeMillis()
-
-      avgNewTransaction += t2 - t1
-      avgSendData += t3-t2
-      avgCheckpoint += t4 - t3
-
-      if(counter % 1000 == 0)
-        println(s"Produced $counter items")
-
-    })
-
-    println(avgNewTransaction)
-    println(avgSendData)
-    println(avgCheckpoint)
-
-    producer.stop()   // stop operation
-    System.exit(0)
-  }
-}
-
-
-class Counters(val label: String, val size: Int) {
-  var min = Long.MaxValue
-  var max = Long.MinValue
-  var avgSum = 0L
-  var buf = ListBuffer[Long]()
-
-  def += (itm: Long) = {
-    if(min > itm) min = itm
-    if(max < itm) max = itm
-    avgSum += itm
-    buf.append(itm)
-  }
-
-  override def toString() = {
-    val sorted = buf.toArray.sorted
-    val percentileIt90 = sorted((size * .90f).toInt - 1)
-    val percentileIt95 = sorted((size * .95f).toInt - 1)
-    val percentileIt97 = sorted((size * .97f).toInt - 1)
-    val percentileIt98 = sorted((size * .98f).toInt - 1)
-    val percentileIt99 = sorted((size * .99f).toInt - 1)
-    s"$label (min=$min, max=$max, avg=${avgSum / size}, 90%=$percentileIt90, 95%=$percentileIt95, 97%=$percentileIt97, 98%=$percentileIt98, 99%=$percentileIt99)\n"
-  }
-
-}
