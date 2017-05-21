@@ -25,8 +25,11 @@ object Setup {
 
   def main(args: Array[String]): Unit = {
     val storageClient = factory.getStorageClient()
-    storageClient.createStream("test_stream", TOTAL_PARTS, 24 * 3600, "")
+    val ttl = 24 * 3600
+    storageClient.createStream("test_stream", TOTAL_PARTS, ttl, "")
     storageClient.shutdown()
+    println(s"Setup is complete. The stream 'test_stream' with ${TOTAL_PARTS} partitions and TTL=$ttl created.")
+    System.exit(0)
   }
 }
 
@@ -114,8 +117,10 @@ object Server {
       .build()
 
     transactionServer.start()
+    println("Server is started and works. Press enter to shutdown the server.")
     scala.io.StdIn.readLine()
     transactionServer.shutdown()
+    System.exit(0)
   }
 }
 
