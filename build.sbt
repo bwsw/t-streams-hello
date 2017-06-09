@@ -6,4 +6,5 @@ scalaVersion 	:= "2.12.1"
 resolvers += Resolver.sonatypeRepo("snapshots")
 
 libraryDependencies ++= Seq("com.bwsw" % "t-streams_2.12" % "3.0.0-SNAPSHOT")
+
 assemblyJarName in assembly := "ts-hello" + prodVersion + ".jar"
