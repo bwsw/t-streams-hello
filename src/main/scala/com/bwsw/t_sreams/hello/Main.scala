@@ -3,9 +3,9 @@ package com.bwsw.t_sreams.hello
 
 import java.util.concurrent.CountDownLatch
 
-import com.bwsw.tstreams.agents.consumer.Offset.{Oldest, Newest}
+import com.bwsw.tstreams.agents.consumer.Offset.Newest
 import com.bwsw.tstreams.agents.consumer.{ConsumerTransaction, TransactionOperator}
-import com.bwsw.tstreams.agents.producer.NewTransactionProducerPolicy
+import com.bwsw.tstreams.agents.producer.NewProducerTransactionPolicy
 import com.bwsw.tstreams.env.{ConfigurationOptions, TStreamsFactory}
 import com.bwsw.tstreamstransactionserver.options.CommonOptions.ZookeeperOptions
 import com.bwsw.tstreamstransactionserver.options.ServerBuilder
@@ -16,7 +16,7 @@ import scala.util.Random
 
 object Setup {
   val TOTAL_TXNS = 100000
-  val TOTAL_ITMS = 1
+  val TOTAL_ITMS = 1000
   val KS = "tk_hello"
   val TOTAL_PARTS = 10
   val PARTS = (0 until TOTAL_PARTS).toSet
@@ -27,7 +27,6 @@ object Setup {
   factory.setProperty(ConfigurationOptions.Stream.ttlSec, 60 * 10).
     setProperty(ConfigurationOptions.Coordination.connectionTimeoutMs, 7000).
     setProperty(ConfigurationOptions.Coordination.sessionTimeoutMs, 7000).
-    setProperty(ConfigurationOptions.Producer.transportTimeoutMs, 5000).
     setProperty(ConfigurationOptions.Producer.Transaction.ttlMs, 6000).
     setProperty(ConfigurationOptions.Producer.Transaction.keepAliveMs, 2000).
     setProperty(ConfigurationOptions.Producer.Transaction.batchSize, 100).
@@ -65,7 +64,7 @@ object HelloProducer {
 
     (0 until Setup.TOTAL_TXNS).foreach(
       i => {
-        val t = producer.newTransaction(policy = NewTransactionProducerPolicy.CheckpointIfOpened) // create new transaction
+        val t = producer.newTransaction(policy = NewProducerTransactionPolicy.CheckpointIfOpened) // create new transaction
         (0 until Setup.TOTAL_ITMS).foreach(j => {
           val v = Random.nextInt()
           t.send(s"${v}".getBytes())
@@ -74,7 +73,7 @@ object HelloProducer {
         if (i % 100 == 0)
           println(i)
 
-        t.checkpoint(true)  // checkpoint the transaction
+        t.checkpoint()  // checkpoint the transaction
       })
 
     val stopTime = System.currentTimeMillis()
@@ -96,12 +95,12 @@ object HelloSubscriber {
 
     val subscriber = Setup.factory.getSubscriber(
       name          = "test_subscriber",              // name of the subscribing consumer
-      partitions    = Setup.PARTS,                        // active partitions
+      partitions    = Setup.PARTS,                    // active partitions
       offset        = Newest,                         // it will start from newest available partitions
-      useLastOffset = false,                        // will ignore history
+      useLastOffset = false,                          // will ignore history
       checkpointAtStart = true,
       callback = (op: TransactionOperator, txn: ConsumerTransaction) => this.synchronized {
-        txn.getAll().foreach(i => sum += Integer.parseInt(new String(i))) // get all information from transaction
+        txn.getAll.foreach(i => sum += Integer.parseInt(new String(i))) // get all information from transaction
         cntr += 1
         if (cntr % 100 == 0) {
           println(cntr)
@@ -162,13 +161,13 @@ object ProducerTimes {
 
       val t1 = System.currentTimeMillis()
 
-      val t = producer.newTransaction(policy = NewTransactionProducerPolicy.CheckpointIfOpened) // create new transaction
+      val t = producer.newTransaction(policy = NewProducerTransactionPolicy.CheckpointIfOpened) // create new transaction
       val t2 = System.currentTimeMillis()
 
       t.send(new Array[Byte](100))
       val t3 = System.currentTimeMillis()
 
-      t.checkpoint(true)
+      t.checkpoint()
       val t4 = System.currentTimeMillis()
 
       avgNewTransaction += t2 - t1
