@@ -13,22 +13,24 @@ import com.bwsw.tstreamstransactionserver.options.ServerOptions.{CommitLogOption
 import scala.util.Random
 
 object Setup {
-  val TOTAL_TXNS = 100000
-  val TOTAL_ITMS = 1000
-  val KS = "tk_hello"
+  val TOTAL_TRANSACTIONS = 100000
+  val TOTAL_ITEMS = 1
   val TOTAL_PARTS = 10
+  val STREAM_NAME = "hello"
   val PARTS = (0 until TOTAL_PARTS).toSet
 
   // create factory
   val factory = new TStreamsFactory()
-  factory.setProperty(ConfigurationOptions.Stream.name, "test_stream")
+  factory.setProperty(ConfigurationOptions.Stream.name, STREAM_NAME)
 
   def main(args: Array[String]): Unit = {
     val storageClient = factory.getStorageClient()
     val ttl = 24 * 3600
-    storageClient.createStream("test_stream", TOTAL_PARTS, ttl, "")
+    if(storageClient.checkStreamExists(STREAM_NAME))
+      storageClient.deleteStream(STREAM_NAME)
+    storageClient.createStream(STREAM_NAME, TOTAL_PARTS, ttl, "")
     storageClient.shutdown()
-    println(s"Setup is complete. The stream 'test_stream' with ${TOTAL_PARTS} partitions and TTL=$ttl created.")
+    println(s"Setup is complete. The stream '$STREAM_NAME' with ${TOTAL_PARTS} partitions and TTL=$ttl created.")
     System.exit(0)
   }
 }
@@ -47,11 +49,11 @@ object HelloProducer {
     val startTime = System.currentTimeMillis()
     var sum = 0L
 
-    (0 until Setup.TOTAL_TXNS).foreach(
+    (0 until Setup.TOTAL_TRANSACTIONS).foreach(
       i => {
         val t = producer.newTransaction()
 
-        (0 until Setup.TOTAL_ITMS).foreach(j => {
+        (0 until Setup.TOTAL_ITEMS).foreach(j => {
           val v = Random.nextInt()
           t.send(s"${v}".getBytes())
           sum += v
@@ -93,7 +95,7 @@ object HelloSubscriber {
           println(transactionCounter)
           op.checkpoint()
         }
-        if (transactionCounter == Setup.TOTAL_TXNS) // if the producer sent all information, then end
+        if (transactionCounter == Setup.TOTAL_TRANSACTIONS) // if the producer sent all information, then end
           l.countDown()
       })
 
@@ -119,9 +121,8 @@ object Server {
       .build()
 
     transactionServer.start()
-    println("Server is started and works. Press enter to shutdown the server.")
-    scala.io.StdIn.readLine()
-    transactionServer.shutdown()
+    // never executed
+    // transactionServer.shutdown()
     System.exit(0)
   }
 }
