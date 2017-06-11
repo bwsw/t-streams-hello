@@ -3,7 +3,7 @@ package com.bwsw.t_sreams.hello
 
 import java.util.concurrent.CountDownLatch
 
-import com.bwsw.tstreams.agents.consumer.Offset.Newest
+import com.bwsw.tstreams.agents.consumer.Offset.Oldest
 import com.bwsw.tstreams.agents.consumer.{ConsumerTransaction, TransactionOperator}
 import com.bwsw.tstreams.env.{ConfigurationOptions, TStreamsFactory}
 import com.bwsw.tstreamstransactionserver.options.CommonOptions.ZookeeperOptions
@@ -30,7 +30,7 @@ object Setup {
       storageClient.deleteStream(STREAM_NAME)
     storageClient.createStream(STREAM_NAME, TOTAL_PARTS, ttl, "")
     storageClient.shutdown()
-    println(s"Setup is complete. The stream '$STREAM_NAME' with ${TOTAL_PARTS} partitions and TTL=$ttl created.")
+    println(s"Setup is complete. The stream '$STREAM_NAME' with $TOTAL_PARTS partitions and TTL=$ttl created.")
     System.exit(0)
   }
 }
@@ -54,9 +54,9 @@ object HelloProducer {
         val t = producer.newTransaction()
 
         (0 until Setup.TOTAL_ITEMS).foreach(j => {
-          val v = Random.nextInt()
-          t.send(s"${v}".getBytes())
-          sum += v
+          val value = Random.nextInt()
+          t.send(s"$value".getBytes())
+          sum += value
         })
         if (i % 100 == 0)
           println(i)
@@ -65,7 +65,7 @@ object HelloProducer {
       })
 
     val stopTime = System.currentTimeMillis()
-    println(s"Execution time is: ${stopTime - startTime}, sum: ${sum}")
+    println(s"Execution time is: ${stopTime - startTime}, sum: $sum")
     producer.stop()   // stop operation
     System.exit(0)
   }
@@ -84,7 +84,7 @@ object HelloSubscriber {
     val subscriber = Setup.factory.getSubscriber(
       name          = "test_subscriber",              // name of the subscribing consumer
       partitions    = Setup.PARTS,                    // active partitions
-      offset        = Newest,                         // it will start from newest available partitions
+      offset        = Oldest,                         // it will start from newest available partitions
       useLastOffset = false,                          // will ignore history
       checkpointAtStart = true,
       callback = (op: TransactionOperator, txn: ConsumerTransaction) => this.synchronized {
@@ -104,7 +104,7 @@ object HelloSubscriber {
     l.await()
     val stopTime = System.currentTimeMillis()
     subscriber.stop() // stop operation
-    println(s"Execution time is: ${stopTime - startTime}, sum: ${sum}")
+    println(s"Execution time is: ${stopTime - startTime}, sum: $sum")
 
     System.exit(0)
   }
